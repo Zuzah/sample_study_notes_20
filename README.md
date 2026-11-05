@@ -1,6 +1,60 @@
 # sample_study_notes_20
 KYC/AML Studies
 
+# Security & Compliance Q&A — FenX Downstream Reporting Platform
+
+Status key: ✅ Confirmed · ⚠️ Gap found (fixable by us) · 🔲 Outside this repo's ownership
+
+## OAuth Client Secret — storage & lifecycle (Q2–3)
+- Stored as a Kubernetes Secret, synced from Vault via External Secrets Operator (5-min refresh cycle). App reads the env var only — never talks to Vault directly.
+- Rotation, expiration, and revocation are managed entirely by Vault/devops. No app-side detection or alerting on a rotated/revoked secret.
+- 🔲 **Owner:** Devops / Secrets management team.
+
+## OAuth Scope (Q4)
+- Current scope is broad (`fenx.all`) — not narrowed to report-retrieval functions only.
+- ⚠️ Known, already-flagged gap: the service account sees **more** Fenergo entities than an individual user's login (confirmed via a real row-count discrepancy investigation). Raised to the team lead — answer still pending on whether this is intentional.
+- **Status:** Open question, not yet answered.
+
+## Report Authorization / Presigned URL (Q5)
+- URL scope/expiry is controlled entirely by Fenergo. We store only the **expiry timestamp** — the URL itself is never persisted, by design.
+- ⚠️ **Gap confirmed:** on a download *failure* specifically, the presigned URL is currently written into both the error log file and the database error field. Not yet remediated.
+
+## KYC Service Trigger / Caller Authentication (Q6)
+- No scheduler exists in this app today — it runs as a one-shot CLI job (K8s Job), triggered externally. Airflow DAGs exist only as unexecuted drafts.
+- The app has no inbound endpoint and therefore no caller-authentication mechanism today.
+- 🔲 **Owner:** Whoever owns the real scheduling/trigger layer — not this workstream.
+
+## PVC Encryption & Access (Q7)
+- Not documented anywhere — the TDD's own Infrastructure/Security Design sections are still blank template text, not just missing from our side.
+- 🔲 **Owner:** Infra / Rancher platform team.
+
+## Retention & Deletion (Q8)
+- ⚠️ **Gap confirmed:** no retention or cleanup logic exists anywhere in the app. Delivered files, Archive/Failed PVC folders, and DB rows accumulate indefinitely.
+- SFTP archive-folder retention is controlled by the receiving landing zone, not by us.
+
+## No Customer Data / Tokens in Logs, Dynatrace, SQL Server (Q9)
+- ✅ Largely holds — DB only ever stores file paths, status, counts, and error text; never raw report data, SQL, or the OAuth token/secret.
+- ⚠️ **Exception:** same presigned-URL leak as Q5 applies here.
+- Dynatrace is not integrated into the app directly (confirmed: TDD's Dynatrace section describes a web server component this batch job doesn't have).
+
+## SAST / SCA / CNAPP / Image Signing / Vuln Reports (Q10)
+- 🔲 None of this exists or is visible in this repo. Build/scan pipeline is owned by devops in a separate CD repo we have no visibility into.
+- Cannot confirm a clean vulnerability scan or provide App Security reports — this needs to come from Devops/AppSec directly.
+
+## GBM Data Exchange / BF3N Integration (Q11)
+- 🔲 No such integration exists in this platform. Out of scope — needs routing to whoever owns BF3N.
+
+## APM Code (Q12)
+- 🔲 Not tracked anywhere in this repo. Platform/Rancher registration detail, outside our scope.
+
+---
+
+## Summary for leadership
+- **2 real gaps on our side, fixable:** presigned-URL leaking into logs/DB on failure (Q5/Q9); no file/DB retention policy (Q8).
+- **5 items need answers from other teams**, not us: KYC trigger/auth (Q6), PVC encryption/access (Q7), security scanning/signing (Q10), BF3N integration (Q11), APM code (Q12).
+- **1 open governance question already escalated:** service-account scope breadth (Q4), awaiting team lead response.
+
+
 app/services/sftp_connection_service.py
 
 
